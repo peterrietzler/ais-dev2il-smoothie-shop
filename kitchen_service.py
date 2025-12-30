@@ -3,16 +3,35 @@ import random
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import logging
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk.resources import Resource
 
 
 logger = logging.getLogger(__name__)
 
+# Configure OpenTelemetry tracing
+resource = Resource.create({"service.name": "kitchen-service"})
+trace.set_tracer_provider(TracerProvider(resource=resource))
+# This is going to export the tracing data to Jaeger
+otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
+trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_exporter))
 
 app = FastAPI(title="Kitchen Service")
 
 # Initialize Prometheus metrics instrumentation
 from prometheus_fastapi_instrumentator import Instrumentator
 Instrumentator().instrument(app).expose(app)
+
+# This is going to hook into FastAPI and automatically create traces for all HTTP requests
+FastAPIInstrumentor.instrument_app(app, exclude_spans=["receive", "send"])
+# This is going to hook into HTTPX to automatically create traces for all outgoing HTTP requests and to
+# connect traces between services with each other
+HTTPXClientInstrumentor().instrument()
 
 # Custom metric: Count smoothies ordered by flavor
 from prometheus_client import Counter
@@ -34,18 +53,27 @@ async def prepare_smoothie(order: SmoothieOrder):
     # Increment the counter for this flavor
     smoothies_ordered.labels(flavor=order.flavor).inc()
 
-    try:
-        logger.debug(f"Waiting for a cook to become available")
-        await asyncio.wait_for(cook_semaphore.acquire(), timeout=2.0)
-    except asyncio.TimeoutError:
-        logger.error(f"Can't process the order: {NUM_COOKS} cooks are currently busy. Consider increasing NUM_COOKS.")
-        raise HTTPException(status_code=503, detail="All cooks are currently busy")
+    tracer = trace.get_tracer(__name__)
+
+    # Custom span: Waiting for cook to become available
+    with tracer.start_as_current_span("wait_for_cook") as wait_span:
+        wait_span.set_attribute("flavor", order.flavor)
+        wait_span.set_attribute("num_cooks", NUM_COOKS)
+        try:
+            logger.debug(f"Waiting for a cook to become available")
+            await asyncio.wait_for(cook_semaphore.acquire(), timeout=2.0)
+        except asyncio.TimeoutError:
+            logger.error(f"Can't process the order: {NUM_COOKS} cooks are currently busy. Consider increasing NUM_COOKS.")
+            raise HTTPException(status_code=503, detail="All cooks are currently busy")
 
     try:
-        # Prepare the smoothie
-        await asyncio.sleep(random.uniform(1.5, 2.5))
+        # Custom span: Preparing the smoothie
+        with tracer.start_as_current_span("prepare_smoothie") as prep_span:
+            prep_span.set_attribute("flavor", order.flavor)
+            preparation_time = random.uniform(1.5, 2.5)
+            await asyncio.sleep(preparation_time)
+            logger.debug(f"Smoothie with flavor {order.flavor} prepared")
 
-        logger.debug(f"Smoothie with flavor {order.flavor} prepared")
         return {"status": "done", "flavor": order.flavor}
     finally:
         cook_semaphore.release()

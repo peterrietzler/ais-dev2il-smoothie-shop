@@ -1,8 +1,28 @@
 import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk.resources import Resource
+
+# Configure OpenTelemetry tracing
+resource = Resource.create({"service.name": "order-service"})
+trace.set_tracer_provider(TracerProvider(resource=resource))
+# This is going to export the tracing data to Jaeger
+otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
+trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_exporter))
 
 app = FastAPI(title="Order Service")
+
+# This is going to hook into FastAPI and automatically create traces for all HTTP requests
+FastAPIInstrumentor.instrument_app(app, exclude_spans=["receive", "send"])
+# This is going to hook into HTTPX to automatically create traces for all outgoing HTTP requests and to
+# connect traces between services with each other
+HTTPXClientInstrumentor().instrument()
 
 class Order(BaseModel):
     flavor: str

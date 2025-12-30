@@ -104,13 +104,14 @@ view to see the query that was generated.
 
 ## Collecting Metrics with Prometheus
 
-Logs are great for understanding what happened in your application, but metrics help you understand
+Logs are great for understanding what happened in your application. Metrics help you understand
 how your application is performing. We use Prometheus to collect, store and query metrics.
 
 - Download the file [docker-compose.yml](https://github.com/peterrietzler/ais-dev2il-smoothie-shop/blob/metrics/docker-compose.yml)
 and overwrite the existing one in the root directory of the project.
 - Download the file [prometheus.yml](https://github.com/peterrietzler/ais-dev2il-smoothie-shop/blob/metrics/prometheus.yml)
 and store it in the root directory of the project.
+- Start Prometheus by running `docker-compose up -d`
 - Add the following lines to the `kitchen_service.py`, right after the creation of the `FastAPI` instance
 ```python
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -125,10 +126,9 @@ library. This library automatically instruments all HTTP endpoints and provides 
 - `http_requests_in_progress` - Number of requests currently being processed
 
 To view the metrics:
-1. Make sure Prometheus is running: `docker-compose up -d`
-2. Make sure that both services are reloaded and generate some traffic
-4. Open Prometheus at http://localhost:9090
-5. Try these queries and have a look at the table and graph results:
+1. Make sure that both services are reloaded and generate some traffic
+1. Open Prometheus at http://localhost:9090
+1. Try these queries and have a look at the table and graph results:
    - Request rate per second: `rate(http_requests_total[1m])` -
    - Average request duration: `http_request_duration_seconds_sum / http_request_duration_seconds_count` 
    - Average request duration calls to `/prepare`: `http_request_duration_seconds_sum{handler="/prepare"} / http_request_duration_seconds_count{handler="/prepare"}`
@@ -136,7 +136,7 @@ To view the metrics:
 You can also view the raw metrics at:
 - Kitchen Service: http://localhost:8001/metrics
 
-We are now going to add a business level metrics. Consider, we want to know how many smoothies
+We are now going to add a business level metric. Consider, we want to know how many smoothies
 are ordered per flavour. We can add a custom Prometheus counter metric to provide this information. 
 
 In `kitchen_service.py` add the following right after the creation of the `Instrumentator`:
@@ -161,9 +161,122 @@ Prometheus to answer the following questions:
 - Most popular flavor: `topk(1, smoothies_ordered_total)`
 - Rate of smoothies ordered per flavor: `rate(smoothies_ordered_total[5m])`
 
+## Distributed Tracing with Jaeger
+
+Logs show you what happened. Metrics show you how your system performs. Traces help you understand
+the flow of requests across multiple services. When a customer orders a smoothie, the request flows from
+the order service to the kitchen service. Distributed tracing helps you see this entire journey.
+
+We use OpenTelemetry to automatically create traces for all HTTP requests and also to connect 
+traces between services with each other. We use Jaeger to collect and visualize these traces.
+
+- Download the file [docker-compose.yml](https://github.com/peterrietzler/ais-dev2il-smoothie-shop/blob/tracing/docker-compose.yml)
+and overwrite the existing one in the root directory of the project.
+- Start Jaeger by running `docker-compose up -d`
+- Add the following code to the top of `kitchen_service.py`
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk.resources import Resource
+
+# Configure OpenTelemetry tracing
+resource = Resource.create({"service.name": "kitchen-service"})
+trace.set_tracer_provider(TracerProvider(resource=resource))
+# This is going to export the tracing data to Jaeger
+otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
+trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_exporter))
+```
+- Add the following code to `kitchen_service.py` after the creation of the `FastAPI` instance
+```python
+# This is going to hook into FastAPI and automatically create traces for all HTTP requests
+FastAPIInstrumentor.instrument_app(app, exclude_spans=["receive", "send"])
+# This is going to hook into HTTPX to automatically create traces for all outgoing HTTP requests and to 
+# connect traces between services with each other
+HTTPXClientInstrumentor().instrument()
+```
+- Insert the same code blocks into `order_service.py` as well. Make sure to change the `service.name` to `order-service`.
+
+The smoothie shop now uses OpenTelemetry to automatically create traces for all HTTP requests and 
+connect traces between services. This means you can follow a single order from the moment it
+arrives at the order service through to when the kitchen prepares it.
+
+To view traces:
+1. Make sure that both services are reloaded and generate some traffic
+1. Open Jaeger UI at http://localhost:16686
+1. Select `order-service` from the _Service_ dropdown and `POST /order` from the _Operation_ dropdown
+1. Click _Find Traces_ to see all traces
+1. Click on any trace to see the detailed view
+
+When you open a trace, you'll see:
+- **Timeline**: Visual representation of when each span started and how long it took
+- **Service Dependencies**: How the order service calls the kitchen service
+- **Error Traces**: If the kitchen is busy (503 error), you'll see red spans indicating failures
+- **Tags**: Additional information about the span, e.g. the HTTP method or status code
+
+Try to answer these questions using Jaeger:
+- How many services are involved in a single smoothie order?
+- Can you identify the slowest part of the request flow?
+- When the kitchen returns a 503 error, how much time was spent before the error occurred?
+
+The used instrumentors hook into libaries automatically and create spans. You can also create spans manually
+using the OpenTelemetry API. Consider, we want to know how long we have to wait for a cook to become available
+and how long it actually takes to prepare a smoothie. In `kitchen_service.py`, replace the `prepare_smoothie` function with:
+```python
+@app.post("/prepare")
+async def prepare_smoothie(order: SmoothieOrder):
+    logger.info(f"Received order to prepare a smoothie with flavor {order.flavor}")
+
+    # Increment the counter for this flavor
+    smoothies_ordered.labels(flavor=order.flavor).inc()
+
+    tracer = trace.get_tracer(__name__)
+
+    # Custom span: Waiting for cook to become available
+    with tracer.start_as_current_span("wait_for_cook") as wait_span:
+        wait_span.set_attribute("flavor", order.flavor)
+        wait_span.set_attribute("num_cooks", NUM_COOKS)
+        try:
+            logger.debug(f"Waiting for a cook to become available")
+            await asyncio.wait_for(cook_semaphore.acquire(), timeout=2.0)
+        except asyncio.TimeoutError:
+            logger.error(f"Can't process the order: {NUM_COOKS} cooks are currently busy. Consider increasing NUM_COOKS.")
+            raise HTTPException(status_code=503, detail="All cooks are currently busy")
+
+    try:
+        # Custom span: Preparing the smoothie
+        with tracer.start_as_current_span("prepare_smoothie") as prep_span:
+            prep_span.set_attribute("flavor", order.flavor)
+            preparation_time = random.uniform(1.5, 2.5)
+            await asyncio.sleep(preparation_time)
+            logger.debug(f"Smoothie with flavor {order.flavor} prepared")
+
+        return {"status": "done", "flavor": order.flavor}
+    finally:
+        cook_semaphore.release()
+```
+
+The kitchen service now includes two custom spans that show internal operations:
+- **wait_for_cook**: Shows how long an order waits for an available cook
+- **prepare_smoothie**: Shows the actual smoothie preparation time
+
+These custom spans help you understand:
+- **Queue time vs work time**: Is most time spent waiting or working?
+- **Bottlenecks**: If wait_for_cook is long, you need more cooks (increase NUM_COOKS)
+- **Business metrics**: Each span includes the flavor as an attribute, which would allow you to spot differences in preparation times between flavors
+
+To view traces:
+1. Make sure that both services are reloaded and generate some traffic
+1. Find traces in the Jager UI and inspect the span hierarchy
+
 ### Further Readings and Exercises
 
 TODOs -
+
+logging instrumentation
 
 merge into master
 configure loki to keep the logs in the project directory
@@ -172,6 +285,7 @@ open telemetry collector instead of sending to loki directly
 PromQL
 Metric types, e.g. counters, gauges, histograms, etc. 
 Volumes might cause problems with Windows. Needs to be investigated.
+OpenTelemetry Traces, Spans, etc.
 
 - Read through the [Python Logging HOWTO](https://docs.python.org/3/howto/logging.html)
 - https://docs.python.org/3/library/logging.html#
