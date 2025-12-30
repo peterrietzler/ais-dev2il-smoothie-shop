@@ -14,3 +14,7 @@ def buy_smoothies():
             print(f"Thanks for the delicious {flavor} smoothie")
         except Exception as e:
             print(f"Failed to order a {flavor} smoothie: {e}")
+
+if __name__ == "__main__":
+    buy_smoothies()
+

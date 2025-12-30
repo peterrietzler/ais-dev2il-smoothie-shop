@@ -3,7 +3,8 @@ formatters:
   console:
     (): uvicorn.logging.DefaultFormatter
     datefmt: '%Y-%m-%d %H:%M:%S'
-    fmt: '%(levelname)s - %(asctime)s - %(message)s'
+    # You can find documentation on available variables here: https://docs.python.org/3/library/logging.html#logrecord-attributes
+    fmt: '%(levelprefix)s %(asctime)s - %(name)s - %(message)s'
 
 handlers:
   # Loggers with this handler will output to the console
@@ -21,10 +22,10 @@ root:
 # Other loggers can be configured optionally if special settings are required
 loggers:
   kitchen_service:
-    handlers:
-    - console
     level: DEBUG
-    propagate: false
+  uvicorn:
+    level: INFO
+
 
 version: 1
 disable_existing_loggers: false

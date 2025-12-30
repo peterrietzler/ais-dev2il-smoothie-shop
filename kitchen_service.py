@@ -28,7 +28,7 @@ async def prepare_smoothie(order: SmoothieOrder):
         # Prepare the smoothie
         await asyncio.sleep(random.uniform(1.5, 2.5))
 
-        logger.info(f"Smoothie with flavor {order.flavor} prepared")
+        logger.debug(f"Smoothie with flavor {order.flavor} prepared")
         return {"status": "done", "flavor": order.flavor}
     finally:
         cook_semaphore.release()

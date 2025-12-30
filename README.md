@@ -34,16 +34,47 @@ have been easy, as the kitchen already contains a configuration parameter to inc
 We are now providing more insights into the smoothie shop by adding logging to the application. Remember 
 these hints on which logging level to choose from the [Python logging HOWTO](https://docs.python.org/3/howto/logging.html#when-to-use-logging): 
 
-| Level     | When it’s used                                                                                           |
-|-----------|---------------------------------------------------------------------------------------------------------|
-| DEBUG     | Detailed information, typically of interest only when diagnosing problems.                              |
-| INFO      | Confirmation that things are working as expected.                                                       |
-| WARNING   | An indication that something unexpected happened, or indicative of some problem in the near future.     |
-| ERROR     | Due to a more serious problem, the software has not been able to perform some function.                 |
-| CRITICAL  | A serious error, indicating that the program itself may be unable to continue running.                  |
+| Level     | When it’s used                                                                                       |
+|-----------|------------------------------------------------------------------------------------------------------|
+| DEBUG     | Detailed information, typically of interest only when diagnosing problems.                           |
+| INFO      | Confirmation that things are working as expected.                                                    |
+| WARNING   | An indication that something unexpected happened, or indicative of some problem in the near future. (e.g. ‘disk space low’). The software is still working as expected. |
+| ERROR     | Due to a more serious problem, the software has not been able to perform some function.              |
+| CRITICAL  | A serious error, indicating that the program itself may be unable to continue running.               |
 
 
+Modify `kitchen_service.py`
+
+- After the existing imports create a logger for the module
+```python
+import logging
+logger = logging.getLogger(__name__)
+``` 
+- Add these log messages to the `prepare_smoothie` function. Find the right places to add them on your own. 
+```python
+logger.info(f"Received order to prepare a smoothie with flavor {order.flavor}")
+logger.debug(f"Waiting for a cook to become available")
+logger.error(f"Can't process the order: {NUM_COOKS} cooks are currently busy. Consider increasing NUM_COOKS.")
+logger.info(f"Smoothie with flavor {order.flavor} prepared")
+```
+
+We want all our logging messages to contain the logging level, a timestamp when the message was logged and 
+the message itself. In addition, we want to be able to define the logging level for each logger individually.
+Download the file [logging_config.yaml](https://github.com/peterrietzler/ais-dev2il-smoothie-shop/blob/logging/logging_config.yaml)
+and store it in the root directory of the project.
+
+Stop the kitchen service and start it again using 
+`uv run uvicorn kitchen_service:app --port 8001 --reload --log-config logging_config.yaml`.  
+
+You can now adjust the log levels, by setting the level of detail that you want to see in `logging_config.yaml`.
 
 ### Further Readings and Exercises
 
+TODOs -
+
+merge into master
+
 - Read through the [Python Logging HOWTO](https://docs.python.org/3/howto/logging.html)
+- https://docs.python.org/3/library/logging.html#
+- Introduce proper logging in the order service
+- Correlate log messages
