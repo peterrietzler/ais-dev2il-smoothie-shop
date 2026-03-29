@@ -103,9 +103,37 @@ Stop the kitchen service and start it again using
 🎉 You are now able to get more insights into what your application is actually doing and
 you should thus be able to figure out what is going wrong and how to fix it.
 
-💡 You can also adjust the log levels, by setting the level of detail that you want to see in `logging_config.yaml`.
-Make sure that you understand `logging_config.yaml` and how it works before you continue. Remember to restart the 
-kitchen service after you changed the logging configuration.
+💡 Make sure that you understand `logging_config.yaml` and how it works before you continue. Match it 
+to the structural picture from above.
+
+### 🚀 Level Up
+
+#### Challenge 1: Log the Service Startup
+
+Add a log message that is written when the kitchen service starts. Include helpful configuration information such as
+the service name and the value of `NUM_COOKS`.
+
+This helps you understand that logs are not only useful while handling requests, but also when checking how a service
+was started.
+
+#### Challenge 2: Introduce Logging in the Order Service
+
+Introduce a logger in `order_service.py` and add meaningful log messages for the most important steps of handling an 
+order. For example, you could log when an order is received, when the order service calls the kitchen service, and 
+whether the smoothie order was completed successfully or failed.
+
+Choose log levels that make sense for the different messages. Keep the logging simple and focus on messages that help 
+you understand the flow of a single order.
+
+#### Challenge 3: Experiment with Log Levels
+
+Change the log levels in `logging_config.yaml` and compare what you can see with `INFO` and `DEBUG`. Remember to 
+restart the kitchen service after you changed the logging configuration.
+
+Try to answer these questions:
+- Which messages do you only see with `DEBUG`?
+- Which messages are useful during normal operation?
+- Which messages are mainly helpful for troubleshooting?
 
 ### Collecting Logs in a Central Place
 
@@ -155,12 +183,7 @@ view to see the query that was generated. Learn more about Loki queries in the
 
 ### 🚀 Level Up
 
-#### Challenge 1: Introduce Logging in the Order Service
-
-Introduce logging and log meaningful messages in the order service. Choose logging levels that make sense for the messages.
-Try to see `DEBUG` logs for the order service, but only `INFO` logs for the kitchen service.
-
-#### Challenge 2: Use Structured Information in Logs
+#### Challenge 1: Use Structured Information in Logs
 
 Adding structured information (extra attributes) to your log messages makes them much more 
 powerful. Instead of just text, you can attach key-value pairs like `num_cooks=3` or `flavor="Mango"`. This structured 
@@ -176,12 +199,12 @@ logger.info("Processing order", extra={"flavor": flavor, "num_cooks": NUM_COOKS}
 ```
 
 Then inspect the logs in Grafana/Loki and search for them. You can filter by these attributes using LogQL queries like 
-`{job="kitchen-service"} | flavor="Mango"` to find all logs for Mango smoothies.
+`{logger="kitchen_service"} | flavor="Mango"` to find all logs for Mango smoothies.
 
 You can always find more information on how to use loggers by contacting the 
 [Python logging documentation](https://docs.python.org/3/library/logging.html#logging.Logger.debug)).
 
-#### Challenge 3: Store Logs in a File
+#### Challenge 2: Store Logs in a File
 
 Logging to files gives you persistence - even if your application crashes or restarts, the logs 
 remain on disk for later inspection.
