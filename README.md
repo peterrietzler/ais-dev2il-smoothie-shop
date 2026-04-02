@@ -159,7 +159,7 @@ When a log message is created, both handlers receive it. This means your logs ap
 - Download the file [logging_config_loki.yaml](https://github.com/peterrietzler/ais-dev2il-smoothie-shop/blob/logging/logging_config_loki.yaml)
 and store it in the root directory of the project. This is the same as the previous logging configuration, but with an additional handler that sends logs to Loki.
 - Download the file [docker-compose.yml](https://github.com/peterrietzler/ais-dev2il-smoothie-shop/blob/logging/docker-compose.yml)
-and store it in the root directory of the project.
+and store it in the root directory of the project. Make sure you understand it!
 - Start Grafana and Loki by running `docker-compose up -d`.
 - Stop the kitchen service and start it again using 
 `uv run uvicorn kitchen_service:app --port 8001 --reload --log-config logging_config_loki.yaml`.
@@ -278,9 +278,9 @@ Logs are great for understanding what happened in your application. Metrics help
 how your application is performing. We use Prometheus to collect, store and query metrics.
 
 - Download the file [docker-compose.yml](https://github.com/peterrietzler/ais-dev2il-smoothie-shop/blob/metrics/docker-compose.yml)
-and overwrite the existing one in the root directory of the project.
+and overwrite the existing one in the root directory of the project. Make sure you understand it!
 - Download the file [prometheus.yml](https://github.com/peterrietzler/ais-dev2il-smoothie-shop/blob/metrics/prometheus.yml)
-and store it in the root directory of the project.
+and store it in the root directory of the project. Make sure you understand it!
 - Start Prometheus by running `docker-compose up -d`
 - Add the following lines to the `kitchen_service.py`, right after the creation of the `FastAPI` instance
 ```python
@@ -419,7 +419,7 @@ We use OpenTelemetry to automatically create traces for all HTTP requests and al
 traces between services with each other. We use Jaeger to collect and visualize these traces.
 
 - Download the file [docker-compose.yml](https://github.com/peterrietzler/ais-dev2il-smoothie-shop/blob/tracing/docker-compose.yml)
-and overwrite the existing one in the root directory of the project.
+and overwrite the existing one in the root directory of the project. Make sure you understand it!
 - Start Jaeger by running `docker-compose up -d`
 - Add the following code to the top of `kitchen_service.py`
 ```python
@@ -515,7 +515,7 @@ The kitchen service now includes two custom spans that show internal operations:
 
 These custom spans help you understand:
 - **Queue time vs work time**: Is most time spent waiting or working?
-- **Bottlenecks**: If wait_for_cook is long, you need more cooks (increase NUM_COOKS)
+- **Bottlenecks**: If `wait_for_cook` is long, you need more cooks (increase NUM_COOKS)
 - **Business metrics**: Each span includes the flavor as an attribute, which would allow you to spot differences in preparation times between flavors
 
 To view traces:
