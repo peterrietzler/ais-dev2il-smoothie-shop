@@ -531,7 +531,7 @@ Correlating by timestamps is possible, but it breaks down quickly when multiple 
 
 **Goal:** When you see a slow or failing trace in Jaeger, instantly find the **exact log lines** for that same request.
 
-##### Step 1: Put `trace_id` into every log line
+**Step 1: Put `trace_id` into every log line**
 
 Add the following code block to both, `order_service.py` and `kitchen_service.py`:
 
@@ -553,12 +553,56 @@ This adds two labels to all your log records:
 - `service_name`
 - `trace_id`
 
-##### Step 2: Search for Logs of a Trace
+**Step 2: Search for Logs of a Trace**
 
 1. Reload both services and generate some traffic
 2. Open Jaeger UI at http://localhost:16686 and open any trace
 3. Copy the trace id from the URL
 4. Go to Grafana and search for logs with `trace_id=<the value you copied>`
+
+#### Challenge 2: Zero-code Tracing via CLI Auto-Instrumentation
+
+In this challenge, you will add tracing **without changing a single line of application code**.
+
+**Setup**
+- Commit all your changes, so you don't lose any work. You can also stash your changes if you want to keep them but don't want to commit them yet.
+- Keep your current `docker-compose` services running (Jaeger, Grafana, etc.)
+- Checkout the `metrics` branch
+
+**Important:** The `metrics` branch does **not** contain any tracing code.
+
+**Step 1: Install auto-instrumentation libraries**
+
+```bash
+uv add opentelemetry-distro opentelemetry-exporter-otlp opentelemetry-instrumentation-fastapi
+```
+**Step 2: Restart the services using `opentelemetry-instrument`**
+
+> 💡 Hint: remove the `--reload` flag. Auto-instrumentation + reload often does not behave well.
+
+In one terminal:
+
+```bash
+export OTEL_SERVICE_NAME=order-service
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+uv run opentelemetry-instrument uvicorn order_service:app --port 8000 --log-config logging_config.yaml
+```
+
+In a second terminal:
+
+```bash
+export OTEL_SERVICE_NAME=kitchen-service
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+uv run opentelemetry-instrument uvicorn kitchen_service:app --port 8001 --log-config logging_config.yaml
+```
+
+**Step 3: Verify**
+1. Generate traffic (order a few smoothies)
+2. Open Jaeger again (http://localhost:16686)
+3. You should now see traces even though the code contains no tracing
+
+More information:
+- https://opentelemetry.io/docs/zero-code/python/
 
 ## Further Readings
 
