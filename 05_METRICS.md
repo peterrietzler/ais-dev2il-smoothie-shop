@@ -26,8 +26,7 @@ library. This library automatically instruments all HTTP endpoints and provides 
 
 Make sure that both services are reloaded and generate some traffic.
 
-Make sure that both services are reloaded and generate some traffic. You can look at the latest state
-of the kitchen service's metrics by visiting: http://localhost:8001/metrics. This is the page that 
+You can look at the latest state of the kitchen service's metrics by visiting: http://localhost:8001/metrics. This is the page that 
 Prometheus scrapes regularly to collect metrics data. Search for `http_requests_total` to find the total 
 number of HTTP requests that the kitchen service has received up until the point in time you loaded the page.
 
@@ -37,7 +36,7 @@ To view the metrics:
 1. Filter down to one dedicated time series through a label, for example: `http_requests_total{handler="/prepare"}`
 1. Use `sum(http_requests_total)` to get the total number of requests across all time series
 1. Try these queries and have a look at the table and graph results:
-   - Request rate per minute: `rate(http_requests_total[1m])`
+   - Request rate per second: `rate(http_requests_total[1m])`
    - Average request duration: `http_request_duration_seconds_sum / http_request_duration_seconds_count` 
    - Average request duration calls to `/prepare`: `http_request_duration_seconds_sum{handler="/prepare"} / http_request_duration_seconds_count{handler="/prepare"}`
    
