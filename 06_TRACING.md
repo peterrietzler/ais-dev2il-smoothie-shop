@@ -32,6 +32,7 @@ trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_exporter)
 - Add the following code to `kitchen_service.py` after the creation of the `FastAPI` instance
 ```python
 # This is going to hook into FastAPI and automatically create traces for all HTTP requests
+# We exclude "receive" and "send" spans because they are not relevant for us and just add noise to the traces
 FastAPIInstrumentor.instrument_app(app, exclude_spans=["receive", "send"])
 # This is going to hook into HTTPX to automatically create traces for all outgoing HTTP requests and to 
 # connect traces between services with each other
